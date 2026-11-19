@@ -32,7 +32,7 @@ const el = {
 const state = {
   id: null,
   consts: null,
-  home: null,          // {player, wl20, wl100, matches, heroes, heroesFromHistory, done}
+  home: null,          // {player, wl20, wl100, matches, heroes, heroesScope, needFullHeroes, done}
   matchCache: new Map(),
   staleSince: null,    // час кешу, якщо щось показано з офлайн-збереження
   renderToken: 0,
@@ -139,12 +139,19 @@ class ApiError extends Error {
   constructor(kind, status) { super(kind); this.kind = kind; this.status = status; }
 }
 
+const API_TIMEOUT_MS = 45000;
+
 async function api(path) {
   let res;
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), API_TIMEOUT_MS) : 0;
   try {
-    res = await fetch(API + path, { headers: { Accept: 'application/json' } });
-  } catch {
+    res = await fetch(API + path, { headers: { Accept: 'application/json' }, signal: ctrl ? ctrl.signal : undefined });
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw new ApiError('timeout');
     throw new ApiError(navigator.onLine === false ? 'offline' : 'network');
+  } finally {
+    clearTimeout(timer);
   }
   const cachedAt = res.headers.get('x-da-cached-at');
   if (cachedAt) noteStale(Number(cachedAt));
@@ -158,7 +165,7 @@ function noteStale(ts) {
   if (!ts) return;
   state.staleSince = state.staleSince ? Math.min(state.staleSince, ts) : ts;
   const d = new Date(state.staleSince);
-  el.banner.textContent = `Немає зв'язку з OpenDota — показано збережені дані від ${dfShort.format(d)}, ${dfTime.format(d)}.`;
+  el.banner.textContent = `OpenDota недоступний або відповідає надто повільно — показано збережені дані від ${dfShort.format(d)}, ${dfTime.format(d)}.`;
   el.banner.hidden = false;
 }
 function clearStale() { state.staleSince = null; el.banner.hidden = true; }
@@ -264,7 +271,10 @@ function skeleton() {
   el.app.innerHTML = `
     <div class="card"><div class="profile"><div class="avatar skel"></div><div class="who"><div class="skel line" style="width:60%"></div><div class="skel line" style="width:35%"></div></div></div>
     <div class="stats"><div class="skel block"></div><div class="skel block"></div></div></div>
-    <div class="card"><div class="skel line" style="width:40%"></div><div class="skel block"></div><div class="skel block"></div></div>`;
+    <div class="card"><div class="skel line" style="width:40%"></div><div class="skel block"></div><div class="skel block"></div></div>
+    <p class="note slow" style="text-align:center" hidden>OpenDota відповідає повільно — зачекайте ще трохи…</p>`;
+  const slow = el.app.querySelector('.slow');
+  setTimeout(() => { if (slow.isConnected) slow.hidden = false; }, 5000);
 }
 
 function errorView(err, retry) {
@@ -280,6 +290,9 @@ function errorView(err, retry) {
   } else if (kind === 'notfound') {
     ic = '🔍'; h = 'Не знайдено';
     p = 'OpenDota не має даних за цим запитом.';
+  } else if (kind === 'timeout') {
+    ic = '🐢'; h = 'OpenDota відповідає надто довго';
+    p = 'Сервер OpenDota зараз перевантажений. Спробуйте ще раз за хвилину-дві.';
   } else if (kind === 'server') {
     h = 'OpenDota зараз не відповідає';
     p = `Сервер повернув помилку${err.status ? ' ' + err.status : ''}. Спробуйте за кілька хвилин.`;
@@ -371,22 +384,19 @@ async function loadHome() {
     matches: val(matches) || [],
     matchesFailed: matches.status === 'rejected',
     heroes: val(heroes),
-    heroesFromHistory: false,
+    heroesScope: 'all',
+    needFullHeroes: false,
     partialError: firstErr ? firstErr.reason : null,
     done: false,
   };
   home.done = home.matches.length < PAGE;
-  // OpenDota інколи віддає по героях games = 0; тоді рахуємо з повної історії матчів.
+  // OpenDota інколи віддає по героях games = 0. Тоді спершу рахуємо з останніх ігор, а повну історію
+  // (повільний запит, до ~10 с) довантажуємо вже після показу екрана — див. upgradeHeroes().
   const heroTotal = (home.heroes || []).reduce((s, h) => s + (h.games || 0), 0);
   if (!heroTotal && home.matches.length) {
-    try {
-      const all = await api(`/players/${id}/matches?project=hero_id&project=player_slot&project=radiant_win`);
-      home.heroes = heroesFromMatches(all);
-      home.heroesFromHistory = true;
-    } catch {
-      home.heroes = heroesFromMatches(home.matches);
-      home.heroesFromHistory = true;
-    }
+    home.heroes = heroesFromMatches(home.matches);
+    home.heroesScope = 'recent';
+    home.needFullHeroes = true;
   }
   return home;
 }
@@ -406,6 +416,20 @@ async function renderHome(token) {
     }
   }
   drawHome();
+  if (state.home.needFullHeroes) upgradeHeroes(state.home);
+}
+
+async function upgradeHeroes(home) {
+  home.needFullHeroes = false;
+  try {
+    const all = await api(`/players/${state.id}/matches?project=hero_id&project=player_slot&project=radiant_win`);
+    home.heroes = heroesFromMatches(all);
+    home.heroesScope = 'history';
+  } catch {
+    home.heroesScope = 'recent-final';
+  }
+  const card = document.getElementById('heroes-card');
+  if (state.home === home && card) card.outerHTML = heroesCard(home.heroes, home.heroesScope);
 }
 
 function drawHome() {
@@ -441,7 +465,7 @@ function drawHome() {
       зіграйте матч і зачекайте — OpenDota підхопить історію.</p></section>`);
   } else {
     if (matches.length) parts.push(formCard(matches.slice(0, 10)));
-    if (heroes && heroes.length) parts.push(heroesCard(heroes, state.home.heroesFromHistory));
+    if (heroes && heroes.length) parts.push(heroesCard(heroes, state.home.heroesScope));
     parts.push(matchesCard(matches));
   }
 
@@ -477,7 +501,7 @@ function formCard(last) {
     <div class="form-note"><span>← найновіша</span><span>старіша →</span></div></section>`;
 }
 
-function heroesCard(list, fromHistory) {
+function heroesCard(list, scope) {
   const top = [...list].filter((h) => h.games > 0).sort((a, b) => b.games - a.games || b.win - a.win).slice(0, 5);
   if (!top.length) return '';
   const rows = top.map((h) => {
@@ -489,7 +513,9 @@ function heroesCard(list, fromHistory) {
         <div class="bar"><i style="width:${p}%;background:${wrColor(p)}"></i></div></div>
       <div class="wr num ${wrClass(p)}">${p}%</div></div>`;
   }).join('');
-  return `<section class="card"><h2>Улюблені герої <span class="aside">${fromHistory ? 'за всю історію' : 'усі ігри'}</span></h2>
+  const n = state.home ? state.home.matches.length : 0;
+  const aside = { all: 'усі ігри', history: 'за всю історію', recent: `останні ${n} · рахую всю історію…` }[scope] || `останні ${n} ігор`;
+  return `<section class="card" id="heroes-card"><h2>Улюблені герої <span class="aside">${aside}</span></h2>
     <div class="heroes">${rows}</div></section>`;
 }
 
@@ -546,7 +572,10 @@ async function renderMatch(matchId, token) {
   if (!match) {
     clearStale();
     el.app.innerHTML = `<div class="card"><div class="skel line" style="width:50%;margin:0 auto 12px"></div><div class="skel block"></div></div>
-      ${'<div class="skel block"></div>'.repeat(5)}`;
+      ${'<div class="skel block"></div>'.repeat(5)}
+      <p class="note slow" style="text-align:center" hidden>OpenDota відповідає повільно — зачекайте ще трохи…</p>`;
+    const slow = el.app.querySelector('.slow');
+    setTimeout(() => { if (slow.isConnected) slow.hidden = false; }, 5000);
     try {
       const [, m] = await Promise.all([loadConstants(), api(`/matches/${matchId}`)]);
       match = m;

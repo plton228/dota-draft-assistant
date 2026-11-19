@@ -3,9 +3,10 @@
  * займають непропорційно багато квоти). Відповідь із кешу позначається заголовком x-da-cached-at (час збереження). */
 'use strict';
 
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL_CACHE = `da-shell-${VERSION}`;
 const API_CACHE = 'da-api';
+const SLOW_MS = 6000;
 const API_LIMIT = 80; // відповідей OpenDota (матч — до ~1 МБ), старіші видаляються
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'manifest.json', 'favicon.png', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 
@@ -27,42 +28,54 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
 
   if (url.hostname === 'api.opendota.com') {
-    event.respondWith(networkFirst(req));
+    event.respondWith(networkFirst(event));
   } else if (url.origin === self.location.origin) {
     event.respondWith(shell(req));
   }
 });
 
-async function networkFirst(req) {
+async function networkFirst(event) {
+  const req = event.request;
   const cache = await caches.open(API_CACHE);
+  const network = fetchAndStore(req, cache);
+  event.waitUntil(network.catch(() => {})); // дати запиту довершитись і оновити кеш
+  // Повільна мережа чи перевантажений OpenDota: через 6 с показуємо збережене (якщо є),
+  // а свіжа відповідь тим часом усе одно оновить кеш.
+  const slowFallback = new Promise((resolve) => {
+    setTimeout(async () => resolve(await cache.match(req)), SLOW_MS);
+  });
   try {
-    const res = await fetch(req);
-    if (res.ok) {
-      const body = await res.clone().arrayBuffer();
-      await cache.put(req, new Response(body, {
-        status: 200,
-        headers: {
-          'content-type': 'application/json; charset=utf-8',
-          'x-da-cached-at': String(Date.now()),
-          // Відповідь іде сторінці як CORS — заголовок треба явно відкрити.
-          'access-control-allow-origin': '*',
-          'access-control-expose-headers': 'x-da-cached-at',
-        },
-      }));
-      trim(cache, API_LIMIT);
-      return res;
-    }
+    const first = await Promise.race([network, slowFallback.then((hit) => hit || network)]);
     // Ліміт (429) чи збій сервера: краще показати збережене, ніж помилку.
-    if (res.status === 429 || res.status >= 500) {
+    if (!first.ok && (first.status === 429 || first.status >= 500)) {
       const hit = await cache.match(req);
       if (hit) return hit;
     }
-    return res;
+    return first;
   } catch (err) {
     const hit = await cache.match(req);
     if (hit) return hit;
     throw err;
   }
+}
+
+async function fetchAndStore(req, cache) {
+  const res = await fetch(req);
+  if (res.ok) {
+    const body = await res.clone().arrayBuffer();
+    await cache.put(req, new Response(body, {
+      status: 200,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'x-da-cached-at': String(Date.now()),
+        // Відповідь іде сторінці як CORS — заголовок треба явно відкрити.
+        'access-control-allow-origin': '*',
+        'access-control-expose-headers': 'x-da-cached-at',
+      },
+    }));
+    trim(cache, API_LIMIT);
+  }
+  return res;
 }
 
 async function trim(cache, limit) {

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0c0f">
+  <meta name="color-scheme" content="dark">
+  <meta name="referrer" content="no-referrer">
+  <meta name="description" content="Історія ігор Dota 2 з телефону: вінрейт, улюблені герої, табло матчів. Дані OpenDota.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Мої ігри">
+  <title>Мої ігри · Draft Assistant</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <button class="icon-btn" id="btn-back" type="button" aria-label="Назад" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <img class="brand" src="favicon.png" alt="" width="28" height="28" id="brand">
+    <h1 class="title" id="title">Мої ігри</h1>
+    <button class="icon-btn" id="btn-refresh" type="button" aria-label="Оновити" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+    </button>
+    <button class="icon-btn" id="btn-account" type="button" aria-label="Змінити Dota ID" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
+    </button>
+  </header>
+
+  <div class="banner" id="banner" role="status" hidden></div>
+
+  <main id="app" aria-live="polite"></main>
+
+  <footer class="foot">
+    Дані: <a href="https://www.opendota.com" target="_blank" rel="noopener">OpenDota</a> · Зображення: Valve.
+    Запити йдуть лише до OpenDota та CDN Steam (картинки); ваш ID зберігається тільки на цьому пристрої.
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

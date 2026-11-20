@@ -499,20 +499,23 @@ function platform() {
   return '';
 }
 
-function widgetUrl() { return new URL(`widget.html#id=${state.id}`, location.href).href; }
+// top — відступ зверху під смугу, яку програма-посередник малює поверх сторінки (0..60 px).
+function widgetUrl() { return new URL(`widget.html#id=${state.id}&top=30`, location.href).href; }
 
 function widgetCard() {
   const p = platform();
   const apps = ANDROID_WIDGET_APPS.map(([n, u]) => `<a href="${u}" target="_blank" rel="noopener">${n}</a>`).join(' або ');
   return `<section class="card widget-card" id="widget-card"><h2>Віджет на екран</h2>
-    <p class="note" style="margin:0 0 10px">Вінрейт, форма й остання гра — просто на головному екрані телефона.
+    <p class="note" style="margin:0 0 10px">Вінрейт, форма й останні ігри — просто на головному екрані телефона.
       Сама вебсторінка віджетом бути не може, тому знадобиться безкоштовна програма-посередник.</p>
     <details class="howto"${p === 'android' || !p ? ' open' : ''}><summary>Android</summary>
       <ol>
         <li>Встановіть з Google Play програму для віджетів-сторінок, напр. ${apps}.</li>
         <li>Натисніть кнопку нижче — посилання на ваш віджет скопіюється.</li>
         <li>Довге натискання на головному екрані → «Віджети» → віджет цієї програми → вставте посилання.
-          Розмір 4×2 або 3×2, оновлення — раз на 30–60 хв.</li>
+          Розмір 4×2 або 4×4 (що вищий віджет, то більше останніх ігор), оновлення — раз на 30–60 хв.</li>
+        <li>Якщо верх закритий смугою програми — збільште <code>top</code> у посиланні (до 60);
+          зайвий відступ — <code>top=0</code>.</li>
       </ol>
       <div class="row-btns"><button class="btn primary" type="button" id="copy-widget">Скопіювати посилання</button>
         <a class="btn" href="${esc(widgetUrl())}" target="_blank" rel="noopener">Переглянути</a></div>

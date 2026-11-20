@@ -290,6 +290,19 @@ details[open].pl .pl-stats .chev { transform: rotate(180deg); }
 .trow .t.on { color: var(--text); background: rgba(242, 201, 76, .12); border-color: rgba(242, 201, 76, .45); font-weight: 600; }
 .note { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
 
+/* ---------- віджет ---------- */
+details.howto { border-top: 1px solid var(--border); }
+details.howto > summary { min-height: var(--tap); display: flex; align-items: center; cursor: pointer; font-weight: 650; list-style: none; }
+details.howto > summary::-webkit-details-marker { display: none; }
+details.howto > summary::after { content: '▾'; margin-left: auto; color: var(--text2); transition: transform .15s; }
+details.howto[open] > summary::after { transform: rotate(180deg); }
+details.howto ol { margin: 0 0 12px; padding-left: 20px; color: var(--text2); font-size: 14px; }
+details.howto li { margin-bottom: 6px; }
+.row-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.row-btns .btn { flex: 1 1 auto; }
+.script-text { width: 100%; height: 140px; margin-bottom: 12px; border-radius: 8px; border: 1px solid var(--border2);
+  background: var(--panel2); color: var(--text2); font: 11px/1.3 ui-monospace, Consolas, monospace; }
+
 /* ---------- стани: завантаження, помилки ---------- */
 .skel { background: linear-gradient(90deg, var(--panel2) 0, var(--panel3) 40%, var(--panel2) 80%); background-size: 300% 100%; animation: sh 1.3s infinite linear; border-radius: 8px; }
 @keyframes sh { from { background-position: 100% 0; } to { background-position: -100% 0; } }

@@ -3,12 +3,12 @@
  * займають непропорційно багато квоти). Відповідь із кешу позначається заголовком x-da-cached-at (час збереження). */
 'use strict';
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL_CACHE = `da-shell-${VERSION}`;
 const API_CACHE = 'da-api';
 const SLOW_MS = 6000;
 const API_LIMIT = 80; // відповідей OpenDota (матч — до ~1 МБ), старіші видаляються
-const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'manifest.json', 'favicon.png', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
+const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'manifest.json', 'favicon.png', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'widget.html', 'dota-widget-ios.js'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(SHELL_CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

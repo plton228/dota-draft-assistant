@@ -476,9 +476,95 @@ function drawHome() {
       : 'Частину даних не вдалося завантажити. Спробуйте оновити.'}</p>`);
   }
 
+  parts.push(widgetCard());
   el.app.innerHTML = parts.join('');
   const more = el.app.querySelector('#more');
   if (more) more.onclick = loadMoreMatches;
+  bindWidgetCard();
+}
+
+/* ---------------- віджет на екран телефона ---------------- */
+
+const SCRIPTABLE_APP = 'https://apps.apple.com/app/scriptable/id1405459188';
+const ANDROID_WIDGET_APPS = [
+  ['WebsiteWidget', 'https://play.google.com/store/apps/details?id=com.websitewidget.app'],
+  ['AnyWidget', 'https://play.google.com/store/apps/details?id=com.webwidget.app'],
+];
+let iosScript = null;  // текст скрипта Scriptable — завантажуємо заздалегідь, щоб копіювання спрацювало одразу
+
+function platform() {
+  const ua = navigator.userAgent || '';
+  if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'ios';
+  if (/Android/.test(ua)) return 'android';
+  return '';
+}
+
+function widgetUrl() { return new URL(`widget.html#id=${state.id}`, location.href).href; }
+
+function widgetCard() {
+  const p = platform();
+  const apps = ANDROID_WIDGET_APPS.map(([n, u]) => `<a href="${u}" target="_blank" rel="noopener">${n}</a>`).join(' або ');
+  return `<section class="card widget-card" id="widget-card"><h2>Віджет на екран</h2>
+    <p class="note" style="margin:0 0 10px">Вінрейт, форма й остання гра — просто на головному екрані телефона.
+      Сама вебсторінка віджетом бути не може, тому знадобиться безкоштовна програма-посередник.</p>
+    <details class="howto"${p === 'android' || !p ? ' open' : ''}><summary>Android</summary>
+      <ol>
+        <li>Встановіть з Google Play програму для віджетів-сторінок, напр. ${apps}.</li>
+        <li>Натисніть кнопку нижче — посилання на ваш віджет скопіюється.</li>
+        <li>Довге натискання на головному екрані → «Віджети» → віджет цієї програми → вставте посилання.
+          Розмір 4×2 або 3×2, оновлення — раз на 30–60 хв.</li>
+      </ol>
+      <div class="row-btns"><button class="btn primary" type="button" id="copy-widget">Скопіювати посилання</button>
+        <a class="btn" href="${esc(widgetUrl())}" target="_blank" rel="noopener">Переглянути</a></div>
+    </details>
+    <details class="howto"${p === 'ios' ? ' open' : ''}><summary>iPhone</summary>
+      <ol>
+        <li>Встановіть безкоштовну програму <a href="${SCRIPTABLE_APP}" target="_blank" rel="noopener">Scriptable</a>.</li>
+        <li>Натисніть «Скопіювати скрипт» (ваш ID уже всередині).</li>
+        <li>У Scriptable: «+» → вставте текст → назвіть скрипт «Dota» → «Готово».</li>
+        <li>Головний екран: утримайте → «+» → Scriptable → малий або середній віджет → утримайте його →
+          «Редагувати віджет» → Script: «Dota».</li>
+      </ol>
+      <div class="row-btns"><button class="btn primary" type="button" id="copy-script">Скопіювати скрипт</button></div>
+      <textarea id="script-text" class="script-text" readonly hidden aria-label="Текст скрипта для Scriptable"></textarea>
+    </details>
+  </section>`;
+}
+
+async function copyText(text, btn, done) {
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.textContent = done;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function bindWidgetCard() {
+  const card = el.app.querySelector('#widget-card');
+  if (!card) return;
+  const linkBtn = card.querySelector('#copy-widget');
+  linkBtn.onclick = async () => {
+    if (!(await copyText(widgetUrl(), linkBtn, 'Скопійовано ✓'))) prompt('Скопіюйте посилання:', widgetUrl());
+  };
+  const scriptBtn = card.querySelector('#copy-script');
+  const area = card.querySelector('#script-text');
+  const load = () => (iosScript ? Promise.resolve(iosScript) : fetch('dota-widget-ios.js')
+    .then((r) => { if (!r.ok) throw new Error(r.status); return r.text(); })
+    .then((t) => (iosScript = t.replace('const DEFAULT_ID = "";', `const DEFAULT_ID = "${state.id}";`))));
+  load().catch(() => {});
+  scriptBtn.onclick = async () => {
+    let text;
+    try { text = await load(); } catch { scriptBtn.textContent = 'Не вдалося завантажити — ще раз'; return; }
+    if (!(await copyText(text, scriptBtn, 'Скрипт скопійовано ✓'))) {
+      area.value = text;
+      area.hidden = false;
+      area.focus();
+      area.select();
+      scriptBtn.textContent = 'Виділіть текст нижче й скопіюйте';
+    }
+  };
 }
 
 function statTile(label, wl) {
